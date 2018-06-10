@@ -11,7 +11,7 @@ $_['setting_module']			= 'Setting module';
  
 //Import product
 $_['text_tab_import']		= 'Import product';
-$_['import_test_text']		= 'Download first 10 items (test mode)';
+$_['import_test_text']		= 'Download items';
 $_['import_task_text']		= 'Create task for cron';
 $_['task']			= 'task';
 $_['import_button']		= 'Import';

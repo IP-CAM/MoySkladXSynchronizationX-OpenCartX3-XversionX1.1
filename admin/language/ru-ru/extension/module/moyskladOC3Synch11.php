@@ -11,7 +11,7 @@ $_['setting_module']			= 'Настройка модуля';
 
 //Import product
 $_['text_tab_import']		= 'Импорт товара';
-$_['import_test_text']		= 'Загрузить первые 10 товаров (test mode)';
+$_['import_test_text']		= 'Загрузить товар';
 $_['import_task_text']		= 'Создать задачу для крона';
 $_['task']			= 'кол. задач';
 $_['import_button']		= 'Импорт';

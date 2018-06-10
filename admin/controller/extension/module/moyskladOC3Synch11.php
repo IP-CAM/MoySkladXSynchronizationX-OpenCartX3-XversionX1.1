@@ -1,12 +1,22 @@
 <?php
+/*
+$_SESSION["moysklad_uuid"] - хранит информацию об uuid коде товара
+$_SESSION["moysklad"] - хранит всю инфу нужную для создания/обновления товара
+$_SESSION["moysklad_mod"] - хранит инфу модификаций
 
-#TODO надо еще переделать модификатор по удалению товара, когда товар удалил то и что бы его uuid в базе тоже удалялся
+*/
 
+session_start();
 class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 	private $error = array();
 
 	//храним url  МойСклад API
     public $urlAPI = "https://online.moysklad.ru/api/remap/1.1/";
+    
+    //сохраняем временные данные
+    public $cahce_quantity = [];
+    public $cahce_country = [];
+ 
 
 	public function index() {
 		$this->load->language('extension/module/moyskladOC3Synch11');
@@ -90,11 +100,8 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 
 		$data['action'] = $this->url->link('extension/module/moyskladOC3Synch11', 'user_token=' . $this->session->data['user_token'], true);
 		
-		//используем ссылку в форме для того что бы создать задачу для крон
-		$data['action_import_createCronTask'] = $this->url->link('extension/module/moyskladOC3Synch11/createCronTask', 'user_token=' . $this->session->data['user_token'], true);
-		
-		//используем ссылку в форме для импорта товара (тестовый режим)
-		$data['action_import_test'] = $this->url->link('extension/module/moyskladOC3Synch11/getMethodImportTest', 'user_token=' . $this->session->data['user_token'], true);
+		//используем ссылку в форме для импорта товара
+		$data['action_import'] = $this->url->link('extension/module/moyskladOC3Synch11/getMethodImport', 'user_token=' . $this->session->data['user_token'], true);
  
 		$data['cancel'] = $this->url->link('marketplace/extension', 'user_token=' . $this->session->data['user_token'] . '&type=module', true);
 
@@ -156,86 +163,27 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 	}
  
 	
-	//метод который создает задачи
-	public function createCronTask(){
-	  $this->load->model('setting/setting');
-	  if (($this->request->server['REQUEST_METHOD'] == 'POST')) {
-	  
-	  //создаем массив который обновляет в базе данные
-	  $mas = [
-	  'module_moyskladOC3Synch11_username' => $this->config->get('module_moyskladOC3Synch11_username'),
-	  'module_moyskladOC3Synch11_password' => $this->config->get('module_moyskladOC3Synch11_password'),
-	  'module_moyskladOC3Synch11_status' => $this->config->get('module_moyskladOC3Synch11_status'),
-	  'module_moyskladOC3Synch11_cron_task' => 1
-	  ];
-	  
-	    //вызываем  метод из коробки для создания задачи для крона под темже ключом, что и основные данные модуля
-	    $this->model_setting_setting->editSetting('module_moyskladOC3Synch11', $mas);
-	    
- 	    //после завершения функции делаем редирект в модуль
-	    $this->response->redirect($this->url->link('extension/module/moyskladOC3Synch11', 'user_token=' . $this->session->data['user_token'], true));
-	  }
-	  
-	  return true;
-	}
-	
 	//вызываем метод по крону
 	public function getMethodImport(){
 	    
-	    //проверяем создана ли задача для крона, если да то запускаем метод на создание/обновление товара
-	    if(!empty($this->config->get('module_moyskladOC3Synch11_cron_task'))){
-		
-		//когда крон вызвали то удаляем задачу
-		$this->load->model('setting/setting');
-		$this->model_setting_setting->editSettingValue('module_moyskladOC3Synch11','module_moyskladOC3Synch11_cron_task','0');
+	  //if(!empty($_POST['start'])){
+ 
 		
 		//по клику запускаем API МойСклад для получения всего товара
 		$this->getAllProduct(0);
-    
-	    }
+ 
+	    //}
 
 	    return true;
 	}
-	
-	//вызываем метод в форме (тестовый режим)
-	public function getMethodImportTest(){
-	    if(!empty($_POST['start'])){
-		
-		//по клику запускаем API МойСклад для получения всего товара
-		$this->testMode();
  
-		//после завершения функции делаем редирект в модуль
-		$this->response->redirect($this->url->link('extension/module/moyskladOC3Synch11', 'user_token=' . $this->session->data['user_token'], true));
-		
- 	    }
-	    
-	    return true;
-	}
-	
-	//метод по тестовому режиму (загрузка первых 10 товаров)
-	public function testMode(){
-	
-	    $urlProduct = $this->urlAPI."entity/product?offset=0&limit=10";
-	    $products = $this->restAPIMoySklad($urlProduct,0,"GET");
- 
- 		foreach($products["rows"] as $product){
-		    
-		    //делаем провекру, что бы товар был с именем
-		    if(!empty($product["name"])){
-			
-			//передаем uuid для проверки существует ли такой uuid в базе или нет
-			$this->searchUUID($product["id"],$product);
-			
-			
- 		    }
- 		}
-	    return true;
-	}
-	
 	//получаем весь товар, что есть (рекурсия)
 	public function getAllProduct($position){
-	    $urlProduct = $this->urlAPI."entity/product?offset=$position&limit=100";
+	    //$urlProduct = $this->urlAPI."entity/product?offset=$position&limit=100";
+	    $urlProduct = $this->urlAPI."entity/product?offset=$position&limit=10";
 	    $products = $this->restAPIMoySklad($urlProduct,0,"GET");
+	    
+	    
 	    
 	    //если дошли до конца списка то выходим из рекурсии 
 	    if(!empty($products["rows"])){
@@ -247,103 +195,146 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 		    //делаем провекру, что бы товар был с именем
 		    if(!empty($product["name"])){
 			
-			//передаем uuid для проверки существует ли такой uuid в базе или нет
-			$this->searchUUID($product["id"],$product);
+			//храним массив для создание/обновления товара
+			$_SESSION["moysklad"][$position+$i] = [
+			  "uuid" => $product["id"],
+			  "product" => $product,
+			];
+			
+			//храним массив для поиска удаленного uuid на МС, что бы удалить в базе опенкарт
+			$_SESSION["moysklad_uuid"][$position+$i] = $product["id"];
 		    }
 		    ++$i;
 		}
-		//вызов рекурсии  
-		$this->getAllProduct($position+$i);
+ 		//вызов рекурсии  
+		//$this->getAllProduct($position+$i);
 	    
 	    }
+	    
+	    //перед загрузкой товара делаем проверку не удалили товар ли с МС который лежит в базе опенкарт
+	    $this->deleteProductFromBaseMC();
+ 
+	    //вызываем метод для создания массива (обновление/создание товара)
+	    $this->searchUUID();
+	    
+	    //загружаем остатки
+	    $this->getQuantity();
+	    
+	    //загружаем страну для товара
+	    $this->getCountry();
+	    
+	    //подтягиваем модификации товара с МС
+	    $this->getModification();
+	    
+	    //$this->response->redirect($this->url->link('extension/module/moyskladOC3Synch11', 'user_token=' . $this->session->data['user_token'], true));
 	    
 	    return true; 
 	}
 	
 	//делаем поиск в таблице uuid  на id  товара.
 	//Если нету то добавляем товар если есть id  товара то обновляем.
-	public function searchUUID($uuid,$mas){
- 
+	public function searchUUID(){
+	 
 	    //получаем доступ к модели модуля
 	    $this->load->model('tool/moyskladOC3Synch11');
 	    
-	    //делаем поиск по uuid
-	    $findUUID = $this->model_tool_moyskladOC3Synch11->modelSearchUUID($uuid);
+	    $data = [];
 	    
-	    $image = "";
+	    foreach($_SESSION["moysklad"] as $mas){
+		
+		//делаем поиск по uuid
+		$findUUID = $this->model_tool_moyskladOC3Synch11->modelSearchUUID($mas['uuid']);
  
-	    //проверяем существует ли цена продажи
-	    if(!empty($mas['salePrices'][0]['value'])){
-	  $price = number_format($mas['salePrices'][0]['value']/100, 2, '.', '');
-	    
-	    }else{
-	  $price = 0;
-	    }
+		//делаем проверку, есть ли страна
+		if(!empty($mas["product"]["country"]["meta"]["href"])){
+		
+		 //сохраняем временные данные о стране
+		  $this->cahce_country[] = [
+		      'uuid'  => $mas["uuid"],
+		      'href'  => $mas["product"]["country"]["meta"]["href"],
+		  ];
+		  
+		}
     
-	    $quantity = (!empty($this->getQuantity($mas['name']))) ? $this->getQuantity($mas['name']): 0;
-	    
-	    //если количество == 0  то ставим статус товара "Нет в наличии" иначе  "В наличии"
-	    if($quantity == 0){
-		$stock_status_id = 5;
-	    }elseif($quantity != 0){
-		$stock_status_id = 7;
-	    }
-  
-	    $data = [
-	      'model'                 =>  "",
-	      'sku'                   =>  "",
-	      'upc'                   =>  "",
-	      'ean'                   =>  "",
-	      'jan'                   =>  "",
-	      'isbn'                  =>  "",
-	      'mpn'                   =>  "",
-	      'location'              =>  "",
-	      'quantity'              =>  $quantity,
-	      'minimum'               =>  "",
-	      'subtract'              =>  "",
-	      'stock_status_id'       =>  $stock_status_id,
-	      'date_available'        =>  "",
-	      'manufacturer_id'       =>  "",
-	      'shipping'              =>  "",
-	      'price'                 =>  $price,
-	      'points'                =>  "",
-	      'weight'                =>  (!empty($mas['weight'])) ? $mas['weight']: 0,
-	      'weight_class_id'       =>  "",
-	      'length'                =>  "",
-	      'width'                 =>  "",
-	      'height'                =>  "",
-	      'length_class_id'       =>  "",
-	      'status'                =>  1,
-	      'tax_class_id'          =>  "",
-	      'sort_order'            =>  "",
-	      'image'                 =>  $image,
-	      'product_description'   =>  [
-		  $this->config->get('config_language_id') =>[
-		      'name'          => $mas['name'],
-		      'description'   => (!empty($mas['description'])) ? $mas['description']: " ",
-		      'tag'           =>  "",
-		      'meta_title'    =>  "",
-		      'meta_description'  =>  "",
-		      'meta_keyword'  =>  "",
-		  ],
-	      ],
-	      'product_store'     =>[
-		  'store_id'          => $this->config->get('config_store_id'),
-	      ],
-	      
-	      'uuid'                  =>  $uuid,
-	      'uuid_url'              =>  $mas['meta']['href'],
-	      'keyword'               =>  "",
-  
-
-	  ];
-	    
+		$image = "";
+    
+		//проверяем существует ли цена продажи
+		if(!empty($mas["product"]['salePrices'][0]['value'])){
+	      $price = number_format($mas["product"]['salePrices'][0]['value']/100, 2, '.', '');
+		
+		}else{
+	      $price = 0;
+		}
  
-	    //если нашли id товара то update, если нет то insert
-	    if(!empty($findUUID)){
-		$this->updateProduct($findUUID,$data);
-	    }else{
-		$this->insertProduct($data);
+ 
+		$data[] = [
+		  'findUUID'              =>  (!empty($findUUID['product_id'])) ? 
+                                            $findUUID['product_id'] : 0,
+		  'model'                 =>  "",
+		  'sku'                   =>  (!empty($mas["product"]["article"])) ? $mas["product"]["article"]: "",
+		  'upc'                   =>  (!empty($mas["product"]["code"])) ? $mas["product"]["code"]: "",
+		  'ean'                   =>  "",
+		  'jan'                   =>  "",
+		  'isbn'                  =>  "",
+		  'mpn'                   =>  "",
+		  'location'              =>  "",
+		  'quantity'              =>  0,
+		  'minimum'               =>  "",
+		  'subtract'              =>  "",
+		  'stock_status_id'       =>  "",
+		  'date_available'        =>  "",
+		  'manufacturer_id'       =>  "",
+		  'shipping'              =>  "",
+		  'price'                 =>  $price,
+		  'points'                =>  "",
+		  'weight'                =>  (!empty($mas["product"]['weight'])) ? $mas["product"]['weight']: 0,
+		  'weight_class_id'       =>  "",
+		  'length'                =>  "",
+		  'width'                 =>  "",
+		  'height'                =>  "",
+		  'length_class_id'       =>  "",
+		  'status'                =>  1,
+		  'tax_class_id'          =>  "",
+		  'sort_order'            =>  "",
+		  'image'                 =>  $image,
+		  'product_description'   =>  [
+		      $this->config->get('config_language_id') =>[
+			  'name'          => $mas["product"]['name'],
+			  'description'   => (!empty($mas["product"]['description'])) ? $mas["product"]['description']: " ",
+			  'tag'           =>  "",
+			  'meta_title'    =>  "",
+			  'meta_description'  =>  "",
+			  'meta_keyword'  =>  "",
+		      ],
+		  ],
+		  'product_store'     =>[
+		      'store_id'          => $this->config->get('config_store_id'),
+		  ],
+		  
+		  'uuid'                  =>  $mas['uuid'],
+		  'uuid_url'              =>  $mas["product"]['meta']['href'],
+		  'keyword'               =>  "",
+      
+
+	      ];
+	      
+	      //сохраняем временные данные о количестве
+	      $this->cahce_quantity[] = [
+		  'uuid'  => $mas["uuid"],
+		  'name'  => $mas["product"]['name'],
+	      ];
+ 
+	  }
+	   
+	  
+	    foreach($data as $cache){
+	      //если нашли id товара то update, если нет то insert
+	      if(!empty($cache['findUUID'])){
+		   $this->updateProduct($cache['findUUID'],$cache);
+	      }else{
+		  $this->insertProduct($cache);
+	      }
+	    
 	    }
 	    
 	    return true;
@@ -385,16 +376,157 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 	    
 	    return true;
 	}
+ 
 	
 	//получаем количество доступного товара в "Остатках"
-	public function getQuantity($name){
-	    $jsonAnswerServer = $this->restAPIMoySklad($this->urlAPI."entity/assortment?filter=name=".urlencode($name),0,"GET");
+	public function getQuantity(){
+	
+	    //получаем доступ к модели модуля
+	    $this->load->model('tool/moyskladOC3Synch11');
+ 
 
-	    //формируем результат по столбцу "Доступно" в моем складе
-	    $quantity = $jsonAnswerServer['rows'][0]['quantity'];
-	    return $quantity;
+		//проверяем есть ли кэш остатки
+		if(!empty($this->cahce_quantity)){
+		    foreach ($this->cahce_quantity as $data){
+			$findUUID = $this->model_tool_moyskladOC3Synch11->modelSearchUUID($data["uuid"]);
+
+			//проверяем существует ли такой товар в базе
+			if(!empty($findUUID['product_id'])){
+			    $jsonAnswerServer = $this->restAPIMoySklad($this->urlAPI."entity/assortment?filter=name=".urlencode($data['name']),0,"GET");
+			    
+			    //формируем результат по столбцу "Доступно" в моем складе
+			    $quantity = (!empty($jsonAnswerServer['rows'][0]['quantity'])) ? $jsonAnswerServer['rows'][0]['quantity'] : 0;
+			    
+			    //если количество == 0  то ставим статус товара "Нет в наличии" иначе  "В наличии"
+			    if($quantity == 0){
+				$stock_status_id = 5;
+			    }elseif($quantity != 0){
+				$stock_status_id = 7;
+			    }
+			    
+			    $this->model_tool_moyskladOC3Synch11->updateProductQuantity($findUUID['product_id'],$quantity,$stock_status_id);
+	
+			}
+		    }
+
+		}
+ 
+	    //удаляем переменную
+	    unset($this->cahce_quantity);
+	    
+	    return true;
     
 	}
+	
+	//по ссылке получаем название странны товара
+	public function getCountry(){
+ 
+	 if(!empty($this->cahce_country)){
+	 
+	  //получаем доступ к модели модуля
+	    $this->load->model('tool/moyskladOC3Synch11');
+	 
+	    foreach($this->cahce_country as $mas){
+	      $jsonAnswerServer = $this->restAPIMoySklad($mas['href'],0,"GET");
+	      $findUUID = $this->model_tool_moyskladOC3Synch11->modelSearchUUID($mas["uuid"]);
+	      
+	      $this->model_tool_moyskladOC3Synch11->updateProductCountry($findUUID['product_id'],$jsonAnswerServer["name"]);
+	      
+	    }
+	  }	  
+	 
+	 unset($this->cahce_country);
+	 return true;
+	}
+ 
+	
+	//получаем все ид с базы uuid, для проверки на удаленость товара. 
+	//Если товар удален с моего склада то и удаляем инфу о нем  в таблице uuid
+	public function deleteProductFromBaseMC(){
+	    //получаем доступ к модели модуля
+	    $this->load->model('tool/moyskladOC3Synch11');
+	    
+	    //заносим в переменную все uuid с базы
+	    $allUUID = $this->model_tool_moyskladOC3Synch11->getAllUUID();
+ 
+	    foreach($allUUID as $uuid){
+	    
+	      //делаем перебор, поиск по массиву uuid
+	      $key = array_search($uuid['uuid_id'], $_SESSION["moysklad_uuid"]);
+	      
+	      //если false то удаляем с базы строку
+	      if($key === false){
+ 		  //делаем апдейт товара, ставим количество товара 0 и статус "нет в наличии" 
+		  $this->model_tool_moyskladOC3Synch11->updateProductQuantity($uuid['product_id'],0,5);
+		  
+		  //удаляем инфу с базы по uuid, товар который удалили с моего склада
+		  $this->model_tool_moyskladOC3Synch11->modelDeleteUUID($uuid['uuid_id']);
+	      }
+	     
+	      
+	    }
+ 
+	    return true;
+	}
+	
+	//получаем все модификации с МоегоСклада
+	public function getModification($position = 0){
+	
+	    //получаем доступ к модели модуля
+	    $this->load->model('tool/moyskladOC3Synch11');
+	    
+	    //$urlProduct = $this->urlAPI."entity/variant?offset=$position&limit=100";
+	    $urlModification = $this->urlAPI."entity/variant?offset=$position&limit=10";
+	    $modification = $this->restAPIMoySklad($urlModification,0,"GET");
+	    
+	    //если дошли до конца списка то выходим из рекурсии 
+	    if(!empty($modification["rows"])){
+	    
+	      $i = 0;
+	      
+		foreach($modification["rows"] as $mod){
+		
+		  //делаем проверку существует ли ссылка на товар
+		  if(!empty($mod["product"]["meta"]["href"])){
+		  
+		    $product_id = $this->model_tool_moyskladOC3Synch11->findUrlGetProductID($mod["product"]["meta"]["href"]);
+		      
+		      //если id товара получили по ссылке то создаем массив с ним
+		      if(!empty($product_id)){
+		      
+			$_SESSION["moysklad_mod"][$position+$i] =[
+			
+			  "product_id" => $product_id["product_id"],
+			  "id"	 => $mod["id"],
+			  "name"  => $mod["name"],
+			  "code"  => $mod["code"],
+			  "externalCode"  => $mod["externalCode"],
+			  "characteristics"  => $mod["characteristics"],
+			  "price"  => $mod["salePrices"][0]["value"],
+			  
+			];
+		      }
+		    
+		    
+		  }
+		    ++$i;
+		  
+		}
+		
+		//добавляем все модификации что есть к товару
+		if(!empty($_SESSION["moysklad_mod"])){
+		    $this->model_tool_moyskladOC3Synch11->addModMC($_SESSION["moysklad_mod"]);
+		  }
+		 
+		
+		
+		
+		//вызов рекурсии  
+		//$this->getModification($position+$i);
+	    }
+ 
+	 }
+	
 	
 	//restAPI моего склада
 	public function restAPIMoySklad($url,$data,$method){

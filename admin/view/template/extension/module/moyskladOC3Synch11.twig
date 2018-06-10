@@ -65,23 +65,13 @@
             <table>
               <tr>
                 <td>
-                  <form action="{{ action_import_test }}" method="post" enctype="multipart/form-data"  class="form-inline">
+                  <form action="{{ action_import }}" method="post" enctype="multipart/form-data"  class="form-inline">
                   <div class="form-group">
                     <span>{{ import_test_text }}</span>
                   </div>
                 <button type="submit" name="start" value="true" class="btn btn-primary importProduct" style="margin-left: 30px;">{{ import_button }}</button>
                 </form>
-                <form action="{{ action_import_createCronTask }}" method="post" enctype="multipart/form-data"  class="form-inline">
-                  <div class="form-group">
-                  {% if module_moyskladOC3Synch11_cron_task %}
-                    <span>{{ import_task_text }} ({{ task }} : {{ module_moyskladOC3Synch11_cron_task }})</span>
-                    {% else %}
-                    <span>{{ import_task_text }} ({{ task }} : 0)</span>
-                    {% endif %}
-                  </div>
-                <button type="submit" name="start" value="true" class="btn btn-primary importProduct" style="margin-left: 30px;">{{ create_task_button }}</button>
-                </form>
-                </td>
+		</td>
               </tr>
         </table> 
         </div>
