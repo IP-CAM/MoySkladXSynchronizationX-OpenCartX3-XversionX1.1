@@ -226,7 +226,7 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 	    //подтягиваем модификации товара с МС
 	    $this->getModification();
 	    
-	    //$this->response->redirect($this->url->link('extension/module/moyskladOC3Synch11', 'user_token=' . $this->session->data['user_token'], true));
+	    $this->response->redirect($this->url->link('extension/module/moyskladOC3Synch11', 'user_token=' . $this->session->data['user_token'], true));
 	    
 	    return true; 
 	}
@@ -475,7 +475,7 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 	    //получаем доступ к модели модуля
 	    $this->load->model('tool/moyskladOC3Synch11');
 	    
-	    //$urlProduct = $this->urlAPI."entity/variant?offset=$position&limit=100";
+	    //urlModification = $this->urlAPI."entity/variant?offset=$position&limit=100";
 	    $urlModification = $this->urlAPI."entity/variant?offset=$position&limit=10";
 	    $modification = $this->restAPIMoySklad($urlModification,0,"GET");
 	    

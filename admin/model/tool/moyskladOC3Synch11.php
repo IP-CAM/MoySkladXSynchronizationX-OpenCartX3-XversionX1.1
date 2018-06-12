@@ -9,7 +9,7 @@ class ModelToolMoyskladOC3Synch11 extends Model {
         $sql[] = "
                         
             CREATE TABLE IF NOT EXISTS `".DB_PREFIX."uuid` (
-         `id` int(255) NOT NULL auto_increment,
+	     `id` int(255) NOT NULL auto_increment,
              `product_id` int(255) NOT NULL,
              `uuid_id` varchar(255) NOT NULL,
              `url` varchar(255) NOT NULL,
@@ -98,130 +98,136 @@ class ModelToolMoyskladOC3Synch11 extends Model {
     //добавляем  модификации с МС в опенкарт
     public function addModMC($datas){
       
+      //удаляем инфу о товаре с 3 таблиц
+      $this->delModMC($datas);
+      
       //заполняем таблицы с атрибутами
       foreach($datas as $data){
-     
-     
-     #TODO насчет модификации, тут поставить условие селект и вытянуть по ид товара все данные и сравнить если есть отличие в названии или же в коде то сделать апдейт строки
-     #а если ничего не нашло то делать инсерт, можно еще удалять с product_attribute по modification_group_id если не нашли сравнений но существует запись
-     
-    //oc_product_modification_groups
-    $this->db->query('INSERT INTO `'.DB_PREFIX.'product_modification_groups` SET product_id = ' . (int)$data["product_id"] . ',
-    `language_id` = 1, `name` = "' . $data["name"] . '", `code` = "' . $data["code"] . '", `price` = "' . $data["price"] . '", `mod_id` = "' . $data["name"] . '",
-    `externalCode` = "' . $data["externalCode"] . '"');  
-    
-    $modification_group_id = $this->db->getLastId();
+	 
+	//oc_product_modification_groups
+	  $this->db->query('INSERT INTO `'.DB_PREFIX.'product_modification_groups` SET product_id = ' . (int)$data["product_id"] . ',
+	  `language_id` = 1, `name` = "' . $data["name"] . '", `code` = "' . $data["code"] . '", `price` = "' . $data["price"] . '", `mod_id` = "' . $data["name"] . '",
+	  `externalCode` = "' . $data["externalCode"] . '"');  
+	  
+	  $modification_group_id = $this->db->getLastId();
+	 
+	
  
-      foreach($data["characteristics"] as $dat){
-      
-        $query = $this->db->query("SELECT attribute_id FROM `".DB_PREFIX."attribute_description` WHERE name = '" . $dat["name"] . "' ");
-        
-        //делаем проверку, если такое имя атрибута есть то не добавляем его в базу
-        if(!empty($query->row['attribute_id'])){
-          $attribute_id = $query->row['attribute_id'];
-        }else{
-          //oc_attribute
-         $this->db->query('INSERT INTO `'.DB_PREFIX.'attribute` SET `attribute_group_id` = 8');  
-         
-         $attribute_id = $this->db->getLastId();
-          
-         //oc_attribute_description
-         $this->db->query('INSERT INTO `'.DB_PREFIX.'attribute_description` SET `attribute_id` = "' . $attribute_id . '", `language_id` = 1, `name` = "' . $dat["name"] . '"');  
-          
-          
-        }
-        
-        #TODO тут поставить тоже проверку, поиск по ид товара и ид атрибута если ничего не нашли то инсертим, если нашли то ничего не делаем
-        
-        //oc_product_attribute
-        $this->db->query('INSERT INTO `'.DB_PREFIX.'product_attribute` SET `product_id` = ' . (int)$data["product_id"] . ', `attribute_id` = ' . (int)$attribute_id . ',
-        `language_id` = 1,`text` = "' . $dat["value"] . '", `modification_group_id` = "' . $modification_group_id . '"'); 
-      
-      }
-    }
-    
-    
-    //заполняем таблицы с фильтрами
-    foreach($datas as $data){
-    
-      foreach($data["characteristics"] as $dat){
-      
-        //oc_filter_group_description
-        $query = $this->db->query("SELECT filter_group_id FROM `".DB_PREFIX."filter_group_description` WHERE name = '" . $dat["name"] . "' ");
-        
-        if(!empty($query->row['filter_group_id'])){
-        
-          $filter_group_id = $query->row['filter_group_id'];
-          
-        }else{
-        
-          //oc_filter_group
-          $this->db->query('INSERT INTO `'.DB_PREFIX.'filter_group` SET `sort_order` = 0'); 
-          
-          $filter_group_id = $this->db->getLastId();
-          
-          //oc_ filter_group_description
-          $this->db->query('INSERT INTO `'.DB_PREFIX.' filter_group_description` SET `filter_group_id` = ' .$filter_group_id. ', `language_id` = 1, `name` = "' . $dat["name"] . '"');  
-          
-          
-        }
-        
-        //oc_filter_description
-        $query_group_description = $this->db->query("SELECT filter_id FROM `".DB_PREFIX."filter_description` WHERE name = '" . $dat["value"] . "'");
-        
-        if(!empty($query_group_description->row['filter_id'])){
-        
-        //oc_filter
-        $query_filter = $this->db->query("SELECT filter_id FROM `".DB_PREFIX."filter` WHERE filter_id = '" . $query_group_description->row['filter_id'] . "'  AND filter_group_id = '" . $filter_group_id . "'");
-        
-        if(!empty($query_filter->row['filter_id'])){
-        
-          #TODO тут надо сделать селект с product_filter по ид товара и вытянуть фильтер ид и сравнить с тем что стоит выше в условии если == то ничего не делаем, если разные то
-          #удаляемвсе
-        
-          //oc_product_filter
-          $this->db->query('INSERT INTO `'.DB_PREFIX.'product_filter` SET `product_id` = ' .(int)$data["product_id"]. ',`filter_id` = "' .$query_filter->row['filter_id']. '"'); 
-        
-        }else{
-        
-          //oc_filter
-          $this->db->query('INSERT INTO `'.DB_PREFIX.'filter` SET `filter_id` = ' .(int)$query_group_description->row['filter_id']. ',`filter_group_id` = "' .$filter_group_id. '"'); 
-          
-          //oc_product_filter
-          $this->db->query('INSERT INTO `'.DB_PREFIX.'product_filter` SET `product_id` = ' .(int)$data["product_id"]. ',`filter_id` = "' .(int)$query_group_description->row['filter_id']. '"'); 
-          
-        }
-        
-        }else{
-          
-          //oc_filter
-          $this->db->query('INSERT INTO `'.DB_PREFIX.'filter` SET `filter_group_id` = "' .$filter_group_id. '"');
-          $filter_id = $this->db->getLastId();
-          
-          //oc_filter_description
-          $this->db->query('INSERT INTO `'.DB_PREFIX.'filter_description` SET `filter_id` = "' .$filter_id. '",
-          `language_id` = 1,`filter_group_id` = "' .$filter_group_id. '",`name` = "' .$dat["value"]. '"');
-          
-          
-          //oc_product_filter
-          $this->db->query('INSERT INTO `'.DB_PREFIX.'product_filter` SET `product_id` = ' .(int)$data["product_id"]. ',`filter_id` = "' .(int)$filter_id. '"'); 
+	  foreach($data["characteristics"] as $dat){
+	  
+	    $query = $this->db->query("SELECT attribute_id FROM `".DB_PREFIX."attribute_description` WHERE name = '" . $dat["name"] . "' ");
+	    
+	    //делаем проверку, если такое имя атрибута есть то не добавляем его в базу
+	    if(!empty($query->row['attribute_id'])){
+	      $attribute_id = $query->row['attribute_id'];
+	    }else{
+	      //oc_attribute
+	     $this->db->query('INSERT INTO `'.DB_PREFIX.'attribute` SET `attribute_group_id` = 8');  
+	     
+	     $attribute_id = $this->db->getLastId();
+	      
+	     //oc_attribute_description
+	     $this->db->query('INSERT INTO `'.DB_PREFIX.'attribute_description` SET `attribute_id` = "' . $attribute_id . '", `language_id` = 1, `name` = "' . $dat["name"] . '"');  
+	      
+	      
+ 	    }
  
-        
-        }
+	    
+	    //oc_product_attribute
+	    $this->db->query('INSERT INTO `'.DB_PREFIX.'product_attribute` SET `product_id` = ' . (int)$data["product_id"] . ', `attribute_id` = ' . (int)$attribute_id . ',
+	    `language_id` = 1,`text` = "' . $dat["value"] . '", `modification_group_id` = "' . $modification_group_id . '"'); 
+	  
+	  }
+	}
+	
+	
+	//заполняем таблицы с фильтрами
+	foreach($datas as $data){
+	
+	  foreach($data["characteristics"] as $dat){
+	  
+	    //oc_filter_group_description
+	    $query = $this->db->query("SELECT filter_group_id FROM `".DB_PREFIX."filter_group_description` WHERE name = '" . $dat["name"] . "' ");
+	    
+	    if(!empty($query->row['filter_group_id'])){
+	    
+	      $filter_group_id = $query->row['filter_group_id'];
+	      
+	    }else{
+	    
+	      //oc_filter_group
+	      $this->db->query('INSERT INTO `'.DB_PREFIX.'filter_group` SET `sort_order` = 0'); 
+	      
+	      $filter_group_id = $this->db->getLastId();
+	      
+	      //oc_ filter_group_description
+	      $this->db->query('INSERT INTO `'.DB_PREFIX.' filter_group_description` SET `filter_group_id` = ' .$filter_group_id. ', `language_id` = 1, `name` = "' . $dat["name"] . '"');  
+	      
+	      
+	    }
+	    
+	    //oc_filter_description
+	    $query_group_description = $this->db->query("SELECT filter_id FROM `".DB_PREFIX."filter_description` WHERE name = '" . $dat["value"] . "'");
+	    
+	    if(!empty($query_group_description->row['filter_id'])){
+		
+		//oc_filter
+		$query_filter = $this->db->query("SELECT filter_id FROM `".DB_PREFIX."filter` WHERE filter_id = '" . $query_group_description->row['filter_id'] . "'  AND filter_group_id = '" . $filter_group_id . "'");
+		
+		if(!empty($query_filter->row['filter_id'])){
  
-        
-      }
-    
-    
-    }
+		  //oc_product_filter
+		  $this->db->query('INSERT INTO `'.DB_PREFIX.'product_filter` SET `product_id` = ' .(int)$data["product_id"]. ',`filter_id` = "' .$query_filter->row['filter_id']. '"'); 
+		
+		}else{
+		
+		  //oc_filter
+		  $this->db->query('INSERT INTO `'.DB_PREFIX.'filter` SET `filter_id` = ' .(int)$query_group_description->row['filter_id']. ',`filter_group_id` = "' .$filter_group_id. '"'); 
+		  
+		  //oc_product_filter
+		  $this->db->query('INSERT INTO `'.DB_PREFIX.'product_filter` SET `product_id` = ' .(int)$data["product_id"]. ',`filter_id` = "' .(int)$query_group_description->row['filter_id']. '"'); 
+		  
+		}
+		
+	    }else{
+	      
+	      //oc_filter
+	      $this->db->query('INSERT INTO `'.DB_PREFIX.'filter` SET `filter_group_id` = "' .$filter_group_id. '"');
+	      $filter_id = $this->db->getLastId();
+	      
+	      //oc_filter_description
+	      $this->db->query('INSERT INTO `'.DB_PREFIX.'filter_description` SET `filter_id` = "' .$filter_id. '",
+	      `language_id` = 1,`filter_group_id` = "' .$filter_group_id. '",`name` = "' .$dat["value"]. '"');
+	      
+	      
+	      //oc_product_filter
+	      $this->db->query('INSERT INTO `'.DB_PREFIX.'product_filter` SET `product_id` = ' .(int)$data["product_id"]. ',`filter_id` = "' .(int)$filter_id. '"'); 
+ 
+	    
+	    }
+ 
+	    
+	  }
+	
+	
+	}
  
       return true;
     }
     
     
+    //удаляем строки по product_id 3 с таблиц oc_product_modification_groups, oc_product_attribute, oc_product_filter
+    public function delModMC($datas){
     
-    public function updateModMC(){
-    
+      //удаляем по строчно по product_id, что бы заново внести свежие данные
+      foreach($datas as $data){
+	 $this->db->query("DELETE FROM `".DB_PREFIX."product_modification_groups` WHERE product_id = '" .(int)$data["product_id"]. "' ");
+	 $this->db->query("DELETE FROM `".DB_PREFIX."product_attribute` WHERE product_id = '" .(int)$data["product_id"]. "' ");
+	 $this->db->query("DELETE FROM `".DB_PREFIX."product_filter` WHERE product_id = '" .(int)$data["product_id"]. "' ");
+      }
+      
+      return true;
+      
     }
  
 }
