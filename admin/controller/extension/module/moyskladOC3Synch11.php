@@ -3,8 +3,12 @@
 $_SESSION["moysklad_uuid"] - хранит информацию об uuid коде товара
 $_SESSION["moysklad"] - хранит всю инфу нужную для создания/обновления товара
 $_SESSION["moysklad_mod"] - хранит инфу модификаций
+$_SESSION["moysklad_image"] - хранит инфу картинок
 
 */
+
+#TODO сделать по клику выгрузку заказов
+#нужно сделать автоматическую выгрузку картинок по крону
 
 session_start();
 class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
@@ -216,6 +220,9 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
  
 	    //вызываем метод для создания массива (обновление/создание товара)
 	    $this->searchUUID();
+
+	    //загружаем картинки товаров
+	    $this->downloadImage();
 	    
 	    //загружаем остатки
 	    $this->getQuantity();
@@ -224,7 +231,7 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 	    $this->getCountry();
 	    
 	    //подтягиваем модификации товара с МС
-	    $this->getModification();
+	    //$this->getModification();
 	    
 	    $this->response->redirect($this->url->link('extension/module/moyskladOC3Synch11', 'user_token=' . $this->session->data['user_token'], true));
 	    
@@ -255,8 +262,22 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 		  ];
 		  
 		}
-    
-		$image = "";
+    	
+    	//изображение товара
+    	if(!empty(htmlspecialchars($mas["product"]["image"]["filename"])) && !empty($mas["product"]["image"]["meta"]["href"])){
+    		$image = htmlspecialchars($mas["product"]["image"]["filename"]);
+    		$image_url = '../image/catalog/moysklad/'.$image;
+
+    		$_SESSION["moysklad_image"][] = [
+    			"name_image"    =>  htmlspecialchars($mas["product"]["image"]["filename"]),
+                "image_url"     =>  $mas["product"]["image"]["meta"]["href"]
+    		];
+
+    	}else{
+    		$image = "";
+    		$image_url = "";
+    	}
+		
     
 		//проверяем существует ли цена продажи
 		if(!empty($mas["product"]['salePrices'][0]['value'])){
@@ -297,6 +318,11 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 		  'tax_class_id'          =>  "",
 		  'sort_order'            =>  "",
 		  'image'                 =>  $image,
+		  'product_image'		  => [
+		  	'sort_order'	=> 0,
+		  	'image'			=> $image_url,
+
+		  ],	
 		  'product_description'   =>  [
 		      $this->config->get('config_language_id') =>[
 			  'name'          => $mas["product"]['name'],
@@ -526,6 +552,59 @@ class ControllerExtensionModuleMoyskladOC3Synch11 extends Controller {
 	    }
  
 	 }
+
+	//функция по скачиванию картинок из моего склада
+   	function downloadImage(){
+
+        //проверяем существует ли директория в которую будем заносить картинки, если нет то создаем
+        if (empty(file_exists("../image/catalog/moysklad"))) {
+        	    $dir_image = mkdir("../image/catalog/moysklad", 0777);
+
+                 //даем права на создание файлов
+                 chmod("../image/catalog/moysklad", 0777);
+
+                 //Если папка не создалась выводим false
+                 if(empty($dir_image)){
+                     $dir_image = false;
+
+                 }else{
+                    $dir_image = "../image/catalog/moysklad/";
+                 }
+
+            }else{
+                $dir_image = "../image/catalog/moysklad/";
+            }
+
+            //проверяем создалась ли нами папка + есть ли картинки для скачивания
+            if(!empty($_SESSION['moysklad_image']) && !empty($dir_image)){
+
+            	#TODO тут нужен цыкл foreach и поменять название переменных без счетчика
+            	#тут надо загнать будет сессию а не переменную
+                foreach($_SESSION['moysklad_image'] as $masImage){
+ 
+                    $ch = curl_init($masImage['image_url']);
+                    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 20);  
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+                    curl_setopt($ch, CURLOPT_USERPWD, $this->dataClient()['login'].":".$this->dataClient()['pass']);
+                    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, array(   
+                        'Accept: application/octet-stream',
+                        'Content-Type: application/octet-stream')                                                           
+                    );   
+                    $response = curl_exec($ch);
+                    curl_close($ch);
+
+                 
+                    //проверяем нету ли ошибок на стороне сервера, если нету то загружаем картинку
+                    if(!empty($response)){
+                        file_put_contents('../image/catalog/moysklad/'.$masImage['name_image'], $response);
+                    } 
+                }
+ 
+                return true;
+            }
+       
+    }
 	
 	
 	//restAPI моего склада

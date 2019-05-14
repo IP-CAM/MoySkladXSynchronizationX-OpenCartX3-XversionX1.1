@@ -45,14 +45,24 @@ class ModelToolMoyskladOC3Synch11 extends Model {
       return true;
     }
  
+
+ 	#TODO возможно тут лучше заюзать готовую функцию editProduct чем юзать свой метож
     
     //обновляем информацию о товаре
-    public function updateProduct($id,$data){
-        $this->db->query("UPDATE " . DB_PREFIX . "product SET  quantity = '" . (int)$data['quantity'] . "',  price = '" . (float)$data['price'] . "',stock_status_id = '" . (int)$data['stock_status_id'] . "', sku = '" . $data['sku'] . "', upc = '" . $data['upc'] . "' , location = '" . $data['location'] . "', weight = '" . (float)$data['weight'] . "',  date_modified = NOW() WHERE product_id = '" . (int)$id . "'");
+    public function updateProduct($product_id,$data){
+        $this->db->query("UPDATE " . DB_PREFIX . "product SET  quantity = '" . (int)$data['quantity'] . "',  price = '" . (float)$data['price'] . "',stock_status_id = '" . (int)$data['stock_status_id'] . "', sku = '" . $data['sku'] . "', upc = '" . $data['upc'] . "' , location = '" . $data['location'] . "', weight = '" . (float)$data['weight'] . "',  date_modified = NOW() WHERE product_id = '" . (int)$product_id . "'");
 
             if (isset($data['image'])) {
-    $this->db->query("UPDATE " . DB_PREFIX . "product SET image = '" . $this->db->escape($data['image']) . "' WHERE product_id = '" . (int)$id . "'");
+    $this->db->query("UPDATE " . DB_PREFIX . "product SET image = '" . $this->db->escape($data['image']) . "' WHERE product_id = '" . (int)$product_id . "'");
             }
+
+            $this->db->query("DELETE FROM " . DB_PREFIX . "product_image WHERE product_id = '" . (int)$product_id . "'");
+
+		if (isset($data['product_image'])) {
+			foreach ($data['product_image'] as $product_image) {
+				$this->db->query("INSERT INTO " . DB_PREFIX . "product_image SET product_id = '" . (int)$product_id . "', image = '" . $this->db->escape($product_image['image']) . "', sort_order = '" . (int)$product_image['sort_order'] . "'");
+			}
+		}
 
             foreach ($data['product_description'] as $language_id => $value) {
     $this->db->query("UPDATE " . DB_PREFIX . "product_description SET name = '" . $this->db->escape($value['name']) . "', description = '" . $this->db->escape($value['description']) . "'  WHERE product_id = '" . (int)$id . "'");
